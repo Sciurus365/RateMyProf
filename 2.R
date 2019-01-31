@@ -41,3 +41,63 @@ ug_psy <- ug_psy %>%
   mutate(post_date_standard = mdy(post_date))
 
 qplot(data = ug_psy, x = post_date, y = star_rating)
+
+# 标签数据清理
+all_prof <- all %>%
+  select(professor_name:num_student) %>%
+  unique()
+
+all_prof <- all_prof %>%
+  mutate(
+    tags_text = map(
+      .x = tag_professor,
+      .f = function(x){
+        y <- str_split(x, pattern = "\\ \\([0-9]+\\)\\ \\ ")
+        if(!is.na(y[[length(y)]])){
+          y[[1]][length(y[[1]])] <- str_remove(y[[1]][length(y[[1]])], "\\ \\([0-9]+\\)")
+        }
+        return(y)
+      }
+    ),
+    tags_freq = map(
+      .x = tag_professor,
+      .f = function(x){
+        y <- str_extract_all(x, "[1-9]+?")
+        return(y)
+      }
+    )
+  )
+
+all_tags_category <- unique(na.omit(c(unlist(all_prof$tags))))
+length(unique(all_tags_category))
+
+all_tags <- all_prof %>%
+  filter(!is.na(tag_professor))
+
+all_tags$tags_category <- list(unique(all_tags_category))
+
+for(i in all_tags_category){
+  all_tags[[i]] <- 0
+  all_tags[[i]] <- as.numeric(all_tags[[i]])
+}
+
+for(i in 1:nrow(all_tags)){
+  temp <- unlist(all_tags[i, "tags_text"][[1]])
+  for(j in 1:length(temp)){
+    all_tags[i, temp[j]] <- as.numeric(unlist(all_tags[i, "tags_freq"][[1]])[j])/as.numeric(all_tags[i, "num_student"][[1]])
+  }
+}
+
+# all_tags$tag_sum <- rowSums(select(all_tags, `Caring`:`BEWARE OF POP QUIZZES`))
+
+# 分析tag和评分
+library(psych)
+library(corrplot)
+all_tags$star_rating <- as.numeric(all_tags$star_rating)
+all_tags$diff_index <- as.numeric(all_tags$diff_index)
+all_tags_m <- as.matrix(select(all_tags, star_rating, diff_index, `Caring`:`BEWARE OF POP QUIZZES`))
+all_tags_m <- apply(all_tags_m, 2, as.numeric)
+co <- cor(all_tags_m)
+corrplot(co, method = "ellipse")
+
+# NLP

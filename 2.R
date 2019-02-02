@@ -1,10 +1,12 @@
 # data3 -------------------------------------------------------------------
 library(tidyverse)
+library(lubridate)
 pat <- "./data3"
 all <- read_csv(str_c(pat, "/","new.csv",sep = ""))
 all <- all %>%
-  filter(is.na(professor_name) | (professor_name != "NULL") & (professor_name != "professor_name"))
-length(unique(all$professor_name))
+  filter(is.na(professor_name) | (professor_name != "NULL") & (professor_name != "professor_name")) %>%
+  mutate(post_date_standard = mdy(post_date))
+  
 all_psy <- all %>%
   filter(str_detect(name_onlines, "PSY") |
            str_detect(name_onlines, "psy") |
@@ -36,9 +38,6 @@ p1 <- ggplot(data = ug_psy, mapping = aes(y = as.numeric(student_star), x = as.n
 library(ggExtra)
 ggMarginal(p1, type = "density", groupFill = TRUE)
 # ↑ this is an important plot. 评分基本上和课程等级无关，但是在4xx的课上人们更多打中间的分？
-library(lubridate)
-ug_psy <- ug_psy %>%
-  mutate(post_date_standard = mdy(post_date))
 
 qplot(data = ug_psy, x = post_date, y = star_rating)
 
@@ -101,3 +100,35 @@ co <- cor(all_tags_m)
 corrplot(co, method = "ellipse")
 
 # NLP
+library(tm)
+data("stop_words")
+all_comment <- all_psy
+sentnrc <- get_sentiments("nrc")
+
+all_comment <- all_comment %>%
+  as.tibble() %>%
+  mutate(post_year = year(post_date_standard)) %>%
+  unnest_tokens(input = "comments", output = "words") %>%
+  anti_join(stop_words, by = c("words" = "word")) %>%
+  mutate(words = stemDocument(words)) #%>%
+  #left_join(sentnrc, by = c("words" = "word"))
+
+all_comment_summary <- all_comment %>%
+  count(words, sort = TRUE) %>%
+  ungroup()
+
+all_comment_summary_by_year <- all_comment %>%
+  count(post_year, words, sort = TRUE) %>%
+  group_by(post_year) %>%
+  mutate(proportion = n / sum(n)) %>%
+  select(-n) %>%
+  ungroup()
+
+all_comment_summary_by_year_10 <- all_comment_summary_by_year %>%
+  inner_join(all_comment_summary[1:10,]) %>%
+  filter(post_year >= 2009)
+
+qplot(data = all_comment_summary_by_year_10, x = post_year, y = proportion, color = as.factor(words)) +
+  geom_smooth(se = FALSE)
+
+qplot(data = all_comment, x = post_year)

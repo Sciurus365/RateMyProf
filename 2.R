@@ -98,9 +98,21 @@ all_tags_m <- as.matrix(select(all_tags, star_rating, diff_index, `Caring`:`BEWA
 all_tags_m <- apply(all_tags_m, 2, as.numeric)
 co <- cor(all_tags_m)
 corrplot(co, method = "ellipse")
+# tag和评分之间的相关 有些词有联系
+# all_tags_by_year <- all_tags %>%
+#   mutate(post_year = year(post_date_standard)) %>%
+#   group_by(post_year, tags_text) %>%
+#   summarise(total_freq = sum(tags_freq)) %>%
+#   ungroup()%>%
+#   group_by(post_year) %>%
+#   mutate(proportion = n / sum(n)) %>%
+#   select(-n) %>%
+#   ungroup()
+# ！需要带时间的tag数据
 
 # NLP
 library(tm)
+library(tidytext)
 data("stop_words")
 all_comment <- all_psy
 sentnrc <- get_sentiments("nrc")
@@ -124,11 +136,66 @@ all_comment_summary_by_year <- all_comment %>%
   select(-n) %>%
   ungroup()
 
-all_comment_summary_by_year_10 <- all_comment_summary_by_year %>%
-  inner_join(all_comment_summary[1:10,]) %>%
+all_comment_summary_by_year_20 <- all_comment_summary_by_year %>%
+  inner_join(all_comment_summary[1:20,]) %>%
   filter(post_year >= 2009)
 
-qplot(data = all_comment_summary_by_year_10, x = post_year, y = proportion, color = as.factor(words)) +
-  geom_smooth(se = FALSE)
+qplot(data = all_comment_summary_by_year_20, x = post_year, y = proportion, color = as.factor(words)) +
+  geom_smooth(se = FALSE) +
+  geom_text(data = filter(all_comment_summary_by_year_20, post_year == 2009 | post_year == 2018), mapping = aes(label = words), size = 5, alpha = 0.5) +
+  theme_bw()
+
+# 有些词的频率有所变化
 
 qplot(data = all_comment, x = post_year)
+
+# HLM
+library(lme4)
+library(lmerTest)
+all_hlm <- all_psy %>%
+  group_by(professor_name, school_name) %>%
+  mutate(
+    mean_post_date_standard = mean(post_date_standard),
+    s_post_date_standard = post_date_standard - mean_post_date_standard
+    ) %>%
+  ungroup()
+
+qplot(data = all_hlm, x = as.numeric(s_post_date_standard), y = as.numeric(star_rating)) +
+  geom_smooth()
+
+all_hlm <-  all_hlm %>%
+  mutate(s = as.integer(as.factor(professor_name))) %>%
+  mutate(s_post_date_standard = as.numeric(s_post_date_standard)/10000000)#1000
+
+lm1 <- lmer(
+  data = all_hlm,
+  as.numeric(star_rating) ~ s_post_date_standard + (s_post_date_standard|s)
+)
+summary(lm1)
+qplot(y = coef(lm1)$`s`$`(Intercept)`, x = coef(lm1)$`s`$`s_post_date_standard`)
+lm1_0 <- lmer(
+  data = all_hlm,
+  as.numeric(star_rating) ~ s_post_date_standard + (1|s)
+)
+summary(lm1_0)
+anova(lm1_0, lm1)
+
+
+lm2 <- lmer(
+  data = all_hlm,
+  as.numeric(diff_index) ~ s_post_date_standard + (s_post_date_standard|s)
+)
+
+summary(lm2)
+
+lm3 <- lmer(
+  data = all_hlm,
+  as.numeric(course_level) ~ s_post_date_standard + (s_post_date_standard|s)
+)
+summary(lm3)
+qplot(data = all_hlm, x = s_post_date_standard, y = course_level) +
+  geom_smooth(data = filter(all_hlm, s < 100), 
+              mapping = aes(group = s), method = "lm", se = FALSE, alpha = 0.5, color = "grey") +
+  theme_bw()
+
+# 不同人的评分/难度随时间变化不明显 但总体来看课程level有提升 

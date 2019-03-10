@@ -7,7 +7,9 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-knitr::opts_chunk$set(cache = TRUE)
+knitr::opts_chunk$set(cache = TRUE, cache.lazy = FALSE )
+knitr::opts_chunk$set(autodep = TRUE)
+knitr::opts_chunk$set(error = TRUE)
 ```
 
 # 读入数据
@@ -145,6 +147,7 @@ for(i in 1:nrow(all_tags)){
 共有`r length(unique(all_tags_category))`个tag。
 
 分析tag和评分
+（**未来需要统一一下大小写 好像ggplot出来的都是大写？**）
 ```{r}
 library(psych)
 library(corrplot)
@@ -294,6 +297,18 @@ ggplot(data = all_take, mapping = aes(x = would_take_agains, y = as.numeric(diff
   geom_violin() +
   geom_boxplot(width = 0.1, notch = TRUE)
 ```
+```{r corr}
+all_take_m <- select(all_take, would_take_agains_10, student_star, student_difficult)
+all_take_m$would_take_agains_10 <- as.numeric(all_take_m$would_take_agains_10)
+all_take_m$student_star <- as.numeric(all_take_m$student_star)
+all_take_m$student_difficult <- as.numeric(all_take_m$student_difficult)
+all_take_m <- as.matrix(all_take_m)
+
+co2 <- cor(all_take_m, use = "pairwise.complete.obs")
+corrplot(co2, method = "ellipse")
+#cor2latex(all_tags_m, star = TRUE, method = "spearman", apa = FALSE)
+```
+
 
 
 # 是否
